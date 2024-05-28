@@ -2,7 +2,6 @@ import { relations } from "drizzle-orm";
 import {
   index,
   integer,
-  interval,
   pgTable,
   primaryKey,
   serial,
@@ -15,7 +14,7 @@ import {
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   displayName: text("name").notNull(),
-  email: text("email").notNull(),
+  email: text("email").notNull().unique(),
   password: varchar("password", { length: 60 }).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   role: text("role", {
@@ -24,10 +23,10 @@ export const users = pgTable("users", {
     .default("unreviewed")
     .notNull(),
 });
-export const usersRelations = relations(users, ({ one, many }) => ({
-  collection: one(collections),
-  // comments: many(comments),
-}));
+// export const usersRelations = relations(users, ({ one, many }) => ({
+//   collection: one(collections),
+//   // comments: many(comments),
+// }));
 
 export const collections = pgTable("collections", {
   id: serial("id").primaryKey(),
@@ -35,8 +34,7 @@ export const collections = pgTable("collections", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   description: text("description"),
 });
-export const collectionsRelations = relations(collections, ({ one, many }) => ({
-  user: one(users),
+export const collectionsRelations = relations(collections, ({ many }) => ({
   recordings: many(recordings),
 }));
 
@@ -65,7 +63,7 @@ export const cantors = pgTable(
     name: text("name").notNull(),
     description: text("description"),
   },
-  (table) => ({ nameIdx: index("name_idx").on(table.name) })
+  (table) => ({ nameIdx: index("name_idx").on(table.name) }),
 );
 export const cantorsRelations = relations(cantors, ({ many }) => ({
   recordings: many(recordings),
@@ -83,7 +81,7 @@ export const cantorsToPlaces = pgTable(
       .references(() => places.id),
     yearsActive: smallint("years_active").notNull(),
   },
-  (t) => ({ pk: primaryKey({ columns: [t.cantor, t.place] }) })
+  (t) => ({ pk: primaryKey({ columns: [t.cantor, t.place] }) }),
 );
 export const cantorsToPlacesRelations = relations(
   cantorsToPlaces,
@@ -96,30 +94,34 @@ export const cantorsToPlacesRelations = relations(
       fields: [cantorsToPlaces.place],
       references: [places.id],
     }),
-  })
+  }),
 );
 
 export const recordings = pgTable("recordings", {
   id: serial("id").primaryKey(),
-  collection: integer("collection")
-    .notNull()
-    .references(() => collections.id),
-  service: integer("service")
-    .notNull()
-    .references(() => services.id),
-  place: integer("place")
-    .notNull()
-    .references(() => places.id),
+  collection: integer("collection").notNull(),
+  service: integer("service").notNull(),
+  place: integer("place").notNull(),
+  cantor: integer("cantor").notNull(),
   description: text("description"),
   approxStart: smallint("approx_start"),
   approxEnd: smallint("approx_end"),
 });
 //
 export const recordingsRelations = relations(recordings, ({ one, many }) => ({
-  collection: one(collections),
-  place: one(places),
-  cantor: one(cantors),
-  service: one(services),
+  collection: one(collections, {
+    fields: [recordings.collection],
+    references: [collections.id],
+  }),
+  place: one(places, { fields: [recordings.place], references: [places.id] }),
+  cantor: one(cantors, {
+    fields: [recordings.cantor],
+    references: [cantors.id],
+  }),
+  service: one(services, {
+    fields: [recordings.service],
+    references: [services.id],
+  }),
   tracks: many(tracks),
 }));
 
@@ -132,7 +134,10 @@ export const tracks = pgTable("tracks", {
   song: text("song"), // TODO? songs table
 });
 export const tracksRelations = relations(tracks, ({ one }) => ({
-  recording: one(recordings),
+  recording: one(recordings, {
+    fields: [tracks.recording],
+    references: [recordings.id],
+  }),
 }));
 
 // TODO comments
